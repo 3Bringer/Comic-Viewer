@@ -4,6 +4,8 @@
 
 界面支持 **中文 / English / 日本語 / 한국어**，可在设置里随时切换。
 
+> English Documentation:：[README-EN.md](README-EN.md)
+
 ---
 
 ## 使用方法
