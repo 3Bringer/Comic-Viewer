@@ -1,0 +1,13 @@
+// @match           https://e-hentai.org/*
+// @match           https://exhentai.org/*
+// @match           https://mangacopy.com/*
+// @match           https://*.mangacopy.com/*
+// @match           https://nhentai.net/*
+// @match           https://18comic.vip/*
+// @match           https://*.18comic.vip/*
+// @match           https://18comic.ink/*
+// @match           https://*.18comic.ink/*
+// @match           https://jmcomic-zzz.one/*
+// @match           https://*.jmcomic-zzz.one/*
+// @match           https://jmcomic-zzz.org/*
+// @match           https://*.jmcomic-zzz.org/*

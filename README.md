@@ -46,20 +46,16 @@
 
 ## 支持的站点
 
-- mangacopy.com
-- e-hentai.org
-- exhentai.org
+- mangacopy
+- e-hentai
+- exhentai
+- 18comic
+- nhentai
 (后续会添加支持的站点)
 
 > 如果你想自行增删支持网站，请在本脚本的 `@match` 行（第 10 行起）进行增删。
 >
-> 每行写一个 `@match`，格式为：
-> `// @match        https://受支持站点域名/*`
->
-> 例如：
-> `// @match        https://e-hentai.org/*`
->
-> 提示： 如果你是在 Greasy Fork 安装此脚本，脚本内置的支持站点可能不完整，需要自行在 @match 行中添加。
+> **提示：** 如果你通过 Greasy Fork 安装本脚本，内置支持站点不完整。你可以在脚本的 `@match` 行中用 [`list.js`](https://github.com/3Bringer/Comic-Viewer/blob/master/list.js) 中的 `@match` 行替换原脚本对应部分，以获得更完整的支持。
 
 ---
 
