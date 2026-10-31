@@ -76,6 +76,10 @@ From a **reader page**: starts at page 1 of the current chapter; on E-Hentai, wh
 
 ## Interface at a glance
 
+![Single-page reading](asset/04-en-single.png)
+
+*Single-page reading: the top bar holds the title, chapter and three scaling modes; the bottom bar shows the page number and progress.*
+
 ### Top bar (collapsed by default — click the center of the screen to show / hide)
 
 From left to right:
@@ -104,6 +108,18 @@ From left to right:
 - Left: **page number**, e.g. `15–16 / 120` (two pages are shown in spread mode)
 - Right: **progress bar**. Each cell is one page; cached cells are darker, and you can click any cell to jump there.
   Chapters longer than 240 pages switch to a single continuous progress bar.
+
+### Two-page spreads
+
+![Two-page mode](asset/05-en-spread.png)
+
+*Two-page mode: pages 15 and 16 joined into one screen, with the bottom bar reading `15–16`.*
+
+### Chapter list
+
+![Chapter list](asset/06-en-chaps.png)
+
+*Chapter panel: the search box filters as you type, and the current chapter is highlighted and scrolled into view.*
 
 ### Mouse / touch
 
