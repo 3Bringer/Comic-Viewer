@@ -2,7 +2,7 @@
 // @name            看漫画
 // @name:en         Comic Viewer
 // @namespace       local.comic.viewer
-// @version         1.0.0
+// @version         1.1.0
 // @description      功能更全的漫画界面，获得更好的体验：图片预加载、目录跳转、条漫连续滚动、章节自动衔接、双页无缝拼接、日漫右起、缩放、本地缓存。界面支持中 / 英 / 日 / 韩。
 // @description:en   A fuller-featured comic reader for a better reading experience: image preloading, chapter navigation, continuous webtoon scrolling, automatic chapter chaining, seamless two-page spreads, right-to-left reading, zoom, and local caching. UI available in Chinese / English / Japanese / Korean.
 // @author          3Bringer
@@ -11,6 +11,15 @@
 // @match           https://exhentai.org/*
 // @match           https://mangacopy.com/*
 // @match           https://*.mangacopy.com/*
+// @match           https://nhentai.net/*
+// @match           https://18comic.vip/*
+// @match           https://*.18comic.vip/*
+// @match           https://18comic.ink/*
+// @match           https://*.18comic.ink/*
+// @match           https://jmcomic-zzz.one/*
+// @match           https://*.jmcomic-zzz.one/*
+// @match           https://jmcomic-zzz.org/*
+// @match           https://*.jmcomic-zzz.org/*
 // @grant           GM_xmlhttpRequest
 // @connect         *
 // @run-at          document-idle
@@ -840,7 +849,9 @@
 
     // 页面地址 → 图片地址：先问预加载脚本的缓存，没有再抓这一页
     async resolveItem(pageUrl) {
-      const cached = readEhMeta(pageUrl);
+      // 这一页刚被判过死刑（重试过）：别再信 sessionStorage 里那份地址，
+      // 预加载脚本很可能又把同一条过期链接原样写回去了
+      const cached = badImg.has(bare(pageUrl)) ? null : readEhMeta(pageUrl);
       if (cached && cached.img) return abs(cached.img, pageUrl);
 
       const html = await fetchText(pageUrl);
@@ -893,7 +904,470 @@
   };
 
 
-  const SITES = [MANGACOPY, EHENTAI];
+  const NH_EXT = { j: 'jpg', p: 'png', g: 'gif', w: 'webp' };
+
+  // /g/123 或 /g/123/4 → '123'；不是 nhentai 的地址返回 null
+  function nhId(href, base) {
+    let url;
+    try { url = new URL(href, base || location.href); } catch (e) { return null; }
+    if (!/(^|\.)nhentai\.net$/i.test(url.hostname)) return null;
+    const m = url.pathname.match(/^\/g\/(\d+)(?:\/|$)/);
+    return m ? m[1] : null;
+  }
+
+  function nhImageUrl(mediaId, n, t) {
+    return 'https://i.nhentai.net/galleries/' + mediaId + '/' + n + '.' + (NH_EXT[t] || 'jpg');
+  }
+
+  async function nhApi(id) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 20000);
+    try {
+      const res = await fetch('https://nhentai.net/api/gallery/' + id, {
+        credentials: 'include',
+        signal: ctl.signal,
+        headers: { Accept: 'application/json' }
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  const NHENTAI = {
+    id: 'nhentai',
+    name: 'nhentai',
+    host: /(^|\.)nhentai\.net$/i,
+    single: true,        // 一个画廊就是一话，没有章节可选
+
+    isDetail(pathname) {
+      return /^\/g\/\d+\/?$/.test(pathname);
+    },
+
+    isChapter(pathname) {
+      return /^\/g\/\d+\/\d+\/?$/.test(pathname);
+    },
+
+    detailUrlOf(url) {
+      const id = nhId(url.href);
+      return id ? 'https://nhentai.net/g/' + id + '/' : null;
+    },
+
+    // 从阅读页 /g/123/4/ 进来，直接从第 4 页开始
+    pageIndexOf(url) {
+      const m = url.pathname.match(/^\/g\/\d+\/(\d+)\/?$/);
+      return m ? Math.max(0, parseInt(m[1], 10) - 1) : 0;
+    },
+
+    chaptersFromDoc(doc, detailUrl) {
+      if (!detailUrl) return [];
+      return [{ title: this.bookTitle(doc) || '画廊', url: bare(detailUrl) }];
+    },
+
+    bookTitle(doc) {
+      const el = doc.querySelector('h1.title .pretty')
+        || doc.querySelector('h1.title')
+        || doc.querySelector('#info h1');
+      if (el && (el.textContent || '').trim()) return el.textContent.trim();
+
+      // 阅读页上没有标题元素，只能从 <title> 里剥：
+      // 「标题 | nhentai」或者「Page 3 | 标题 | nhentai」
+      return String(doc.title || '')
+        .replace(/\s*[|｜–—-]\s*nhentai.*$/i, '')
+        .replace(/^page\s*\d+\s*[|｜–—-]\s*/i, '')
+        .trim();
+    },
+
+    // 一次拿全章（引擎的 fastImages 会优先用它）
+    async fetchImages(chUrl) {
+      const id = nhId(chUrl);
+      if (!id) return null;
+
+      const data = await nhApi(id);
+      const pages = data && data.images && data.images.pages;
+      if (!data || !data.media_id || !pages || !pages.length) return null;
+
+      const images = [];
+      for (let i = 0; i < pages.length; i++) {
+        images.push(nhImageUrl(data.media_id, i + 1, pages[i] && pages[i].t));
+      }
+      return { images: images, total: data.num_pages || images.length, how: '接口' };
+    },
+
+    // 兜底：阅读页只有当前这一张；画廊页把缩略图链接换成「页面地址」
+    imagesFromDoc(doc, baseUrl) {
+      const img = doc.querySelector('#image') || doc.querySelector('#image-container img');
+      const src = img && (img.getAttribute('src') || img.getAttribute('data-src'));
+      if (src) return [abs(src, baseUrl)];
+
+      const id = nhId(baseUrl);
+      if (!id) return [];
+
+      const re = new RegExp('^/g/' + id + '/(\\d+)/?$');
+      const as = doc.querySelectorAll('a[href*="/g/"]');
+      const byPage = new Map();
+      for (let i = 0; i < as.length; i++) {
+        const m = (as[i].getAttribute('href') || '').match(re);
+        if (!m) continue;
+        const n = parseInt(m[1], 10);
+        if (n > 0 && !byPage.has(n)) byPage.set(n, 'https://nhentai.net/g/' + id + '/' + n + '/');
+      }
+      return Array.from(byPage.keys()).sort((a, b) => a - b).map(n => byPage.get(n));
+    },
+
+    async imagesFromHtml(html, url) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      return { items: this.imagesFromDoc(doc, url), total: 0 };
+    },
+
+    // 页面地址 → 图片地址。本来就是图片地址的直接放行（大多数情况走这里）
+    async resolveItem(raw) {
+      if (!raw) return null;
+
+      let url;
+      try { url = new URL(raw, location.href); } catch (e) { return raw; }
+      if (!/^\/g\/\d+\/\d+\/?$/.test(url.pathname)) return raw;
+
+      const html = await fetchText(raw);
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const img = doc.querySelector('#image') || doc.querySelector('#image-container img');
+      const src = img && (img.getAttribute('src') || img.getAttribute('data-src'));
+      return src ? abs(src, raw) : null;
+    },
+
+    // iframe 兜底时，什么算「渲染好了」
+    frameReady(doc) {
+      return !!(doc.querySelector('#image') || doc.querySelector('.thumb-container'));
+    },
+
+    // 图片有好几个主机（i1~i4，i 是调度用的别名）。某个节点连不上时
+    // （典型报错 ERR_CONNECTION_CLOSED，多半是代理规则只放行了 i 或者节点挂了），
+    // 换一个编号主机再试。最多给 3 个候选，免得全挂的时候卡太久。
+    fallbacks(imgUrl) {
+      const m = String(imgUrl).match(/^https?:\/\/(i\d*)\.nhentai\.net\/(.+)$/i);
+      if (!m) return [];
+
+      const path = m[2];
+      const out = [];
+      const add = u => { if (u !== imgUrl && out.indexOf(u) < 0) out.push(u); };
+
+      for (let n = 1; n <= 4; n++) add('https://i' + n + '.nhentai.net/' + path);
+      add('https://i.nhentai.net/' + path);      // 调度主机，可能重新分配节点
+
+      return out.slice(0, 3);
+    }
+  };
+
+
+  // 18comic 的镜像：只影响 host 匹配，路径规则都一样
+  const JM_HOST = /(^|\.)(18comic|jmcomic-zzz)\.[a-z]+$/i;
+
+  const JM_SCRAMBLE_DEFAULT = 220980;   // 页面里读不到 scramble_id 时按这个算
+
+  const MD5_S = [
+    7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+    5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+    4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+    6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
+  ];
+  const MD5_K = (() => {
+    const k = new Array(64);
+    for (let i = 0; i < 64; i++) k[i] = Math.floor(Math.abs(Math.sin(i + 1)) * 4294967296) | 0;
+    return k;
+  })();
+
+  function md5Hex(str) {
+    const enc = new TextEncoder().encode(String(str));
+    const bytes = [];
+    for (let i = 0; i < enc.length; i++) bytes.push(enc[i]);
+
+    const bitLen = enc.length * 8;
+    bytes.push(0x80);
+    while (bytes.length % 64 !== 56) bytes.push(0);
+    for (let i = 0; i < 4; i++) bytes.push((bitLen >>> (i * 8)) & 0xFF);
+    for (let i = 0; i < 4; i++) bytes.push(0);
+
+    let a0 = 0x67452301 | 0;
+    let b0 = 0xefcdab89 | 0;
+    let c0 = 0x98badcfe | 0;
+    let d0 = 0x10325476 | 0;
+
+    for (let off = 0; off < bytes.length; off += 64) {
+      const x = new Array(16);
+      for (let i = 0; i < 16; i++) {
+        const j = off + i * 4;
+        x[i] = bytes[j] | (bytes[j + 1] << 8) | (bytes[j + 2] << 16) | (bytes[j + 3] << 24);
+      }
+
+      let a = a0, b = b0, c = c0, d = d0;
+      for (let i = 0; i < 64; i++) {
+        let f, g;
+        if (i < 16) { f = (b & c) | (~b & d); g = i; }
+        else if (i < 32) { f = (d & b) | (~d & c); g = (5 * i + 1) % 16; }
+        else if (i < 48) { f = b ^ c ^ d; g = (3 * i + 5) % 16; }
+        else { f = c ^ (b | ~d); g = (7 * i) % 16; }
+
+        const tmp = d;
+        d = c;
+        c = b;
+        const sum = (a + f + MD5_K[i] + x[g]) | 0;
+        const s = MD5_S[i];
+        b = (b + ((sum << s) | (sum >>> (32 - s)))) | 0;
+        a = tmp;
+      }
+
+      a0 = (a0 + a) | 0;
+      b0 = (b0 + b) | 0;
+      c0 = (c0 + c) | 0;
+      d0 = (d0 + d) | 0;
+    }
+
+    let out = '';
+    [a0, b0, c0, d0].forEach(n => {
+      for (let i = 0; i < 4; i++) out += ((n >>> (i * 8)) & 0xFF).toString(16).padStart(2, '0');
+    });
+    return out;
+  }
+
+  // 这张图被切成了几段（0 = 没打乱）
+  function jmSplitNum(aid, scrambleId, filename) {
+    aid = parseInt(aid, 10) || 0;
+    scrambleId = parseInt(scrambleId, 10) || 0;
+    if (!aid) return 0;
+    if (aid < scrambleId) return 0;
+    if (aid < 268850) return 10;
+
+    const x = aid < 421926 ? 10 : 8;
+    const h = md5Hex(String(aid) + filename);
+    return (h.charCodeAt(h.length - 1) % x) * 2 + 2;
+  }
+
+  // 图片地址 → 文件名（去掉扩展名和查询串），MD5 用的就是它
+  function jmFileName(url) {
+    const s = String(url).split('#')[0].split('?')[0];
+    const last = s.split('/').pop() || '';
+    return last.replace(/\.[a-z0-9]+$/i, '');
+  }
+
+  // 把打乱的图还原：切成 num 段横条，从下往上搬到上往下
+  async function jmUnscramble(blob, num) {
+    if (!num || num < 2) return blob;
+    if (typeof createImageBitmap !== 'function') return blob;
+
+    let bmp;
+    try { bmp = await createImageBitmap(blob); } catch (e) { return blob; }
+
+    const w = bmp.width;
+    const h = bmp.height;
+    const move = Math.floor(h / num);
+    const over = h % num;
+
+    if (!w || !move) { if (bmp.close) bmp.close(); return blob; }
+
+    // 页面图不会这么小。这么小的多半是被误当成页的广告 / 占位图，
+    // 它本来就没打乱，硬还原只会切成错位的花图——原样返回。
+    if (w < 300 || h < 300) { if (bmp.close) bmp.close(); return blob; }
+
+    const cv = document.createElement('canvas');
+    cv.width = w;
+    cv.height = h;
+    const ctx = cv.getContext('2d');
+
+    for (let i = 0; i < num; i++) {
+      const ySrc = h - move * (i + 1) - over;
+      let yDst = move * i;
+      let hh = move;
+      if (i === 0) hh += over;      // 第一段吸收余数
+      else yDst += over;            // 后面的整体下移
+      ctx.drawImage(bmp, 0, ySrc, w, hh, 0, yDst, w, hh);
+    }
+    if (bmp.close) bmp.close();
+
+    return new Promise(resolve => {
+      if (typeof cv.toBlob !== 'function') { resolve(blob); return; }
+      cv.toBlob(b => resolve(b || blob), 'image/jpeg', 0.92);
+    });
+  }
+
+  const jmSplit = new Map();     // 图片地址 → 分割数
+
+  const JMCOMIC = {
+    id: 'jmcomic',
+    name: '18comic',
+    host: JM_HOST,
+
+    // 作品页地址带标题尾巴：/album/1482983/标题 → 后面的路径段不能当成不存在
+    isDetail(pathname) {
+      return /^\/album\/\d+(?:\/|$)/i.test(pathname);
+    },
+
+    // 阅读页同理，/photo/300001/ 或 /photo/300001/标题 都认
+    isChapter(pathname) {
+      return /^\/photo\/\d+(?:\/|$)/i.test(pathname);
+    },
+
+    // 归一作品页地址：去掉标题尾巴，进度和目录缓存的键才稳定
+    normDetail(url) {
+      const id = (String(url).match(/\/album\/(\d+)/) || [])[1];
+      return id ? url.origin + '/album/' + id + '/' : null;
+    },
+
+    // 阅读页 → 作品页。优先用阅读页脚本里的 album_id（站上叫 series_id），
+    // 拿不到再找页面上的回作品链接（保留原地址，可能带标题尾巴）
+    detailUrlOf(url, doc) {
+      const d = doc || document;
+
+      const scripts = d.querySelectorAll('script');
+      for (let i = 0; i < scripts.length; i++) {
+        const m = (scripts[i].textContent || '').match(/var\s+series_id\s*=\s*(\d+)/);
+        if (m && parseInt(m[1], 10) > 0) return url.origin + '/album/' + m[1] + '/';
+      }
+
+      const as = d.querySelectorAll('a[href*="/album/"]');
+      for (let i = 0; i < as.length; i++) {
+        const href = as[i].getAttribute('href') || '';
+        if (/\/album\/\d+/.test(href)) return abs(href, url.href);
+      }
+      return null;
+    },
+
+    bookTitle(doc) {
+      const el = doc.querySelector('#book-name')
+        || doc.querySelector('.book-title')
+        || doc.querySelector('.panel-heading h2')
+        || doc.querySelector('h1');
+      if (el && (el.textContent || '').trim()) return el.textContent.trim();
+
+      // 阅读页的 <title> 是「标题 | 18comic」或「第 N 页 | 标题 | 18comic」
+      const t = String(doc.title || '')
+        .replace(/\s*[|｜]\s*18comic.*$/i, '')
+        .replace(/^第\s*\d+\s*[页頁]\s*[|｜]\s*/, '')
+        .trim();
+      return t;
+    },
+
+    // 作品页：章节条目上带 data-album="{阅读页编号}"（不是 /photo/ 链接），
+    // 单话作品则是「开始阅读」按钮，两种都收。按 DOM 顺序就是阅读顺序。
+    //
+    // ⚠️ 注意：第一话的编号往往就等于作品号（连载作品建号时第一话和作品
+    // 共用一个号），所以绝对不能把「data-album === 作品号」当成非章节条目
+    // 跳过——那样会把第一话整个删掉，只剩第二话开始。
+    chaptersFromDoc(doc, detailUrl) {
+      const out = [];
+      const seen = new Set();
+      const base = detailUrl || location.href;
+
+      const push = (id, name) => {
+        if (!id || !/^\d+$/.test(String(id)) || seen.has(String(id))) return;
+        seen.add(String(id));
+        out.push({
+          title: name || ('第 ' + (out.length + 1) + ' 话'),
+          url: abs('/photo/' + id + '/', base)
+        });
+      };
+
+      // 主要来源：章节条目
+      const eps = doc.querySelectorAll('[data-album]');
+      for (let i = 0; i < eps.length; i++) {
+        push(eps[i].getAttribute('data-album'),
+             (eps[i].textContent || '').replace(/\s+/g, ' ').trim());
+      }
+
+      // 兼容：直接的 /photo/ 链接（旧版布局、页脚的「开始阅读」）
+      const as = doc.querySelectorAll('a[href*="/photo/"]');
+      for (let i = 0; i < as.length; i++) {
+        const m = (as[i].getAttribute('href') || '').match(/\/photo\/(\d+)/);
+        if (!m) continue;
+        push(m[1], (as[i].textContent || '').replace(/\s+/g, ' ').trim());
+      }
+
+      return out;
+    },
+
+    // 真正的页面图长这样：/media/photos/{相册}/{5 位数字}.jpg
+    // 阅读页里还混着广告位、占位图、图标之类的小图，它们被当成「页」去还原
+    // 就会变成上下错位的花图，所以按这个形状先排掉。
+    isPageImage(url) {
+      const u = String(url).split('#')[0].split('?')[0];
+      if (!/\/media\/photos\/\d+\//i.test(u)) return false;
+      return /\/\d{3,6}\.[a-z]{2,5}$/i.test(u);
+    },
+
+    // 阅读页：img[data-original]，按 data-page 排；顺便记下这张要切几段
+    imagesFromDoc(doc, baseUrl) {
+      const imgs = doc.querySelectorAll('img[data-original], #divImage img, .scramble-page img');
+      const list = [];
+
+      for (let i = 0; i < imgs.length; i++) {
+        const el = imgs[i];
+        const src = el.getAttribute('data-original')
+          || el.getAttribute('data-src')
+          || el.getAttribute('src') || '';
+        if (!src || /^data:/i.test(src) || /\/media\/albums\/blank/i.test(src)) continue;
+
+        const u = abs(src, baseUrl);
+        if (!u) continue;
+
+        const page = el.getAttribute('data-page');
+        list.push({
+          url: u,
+          page: page == null ? i : (parseInt(page, 10) || 0),
+          ok: this.isPageImage(u)
+        });
+      }
+
+      list.sort((a, b) => a.page - b.page);
+
+      // 只留页面图；万一规则过严一张都不剩（站点改版了），就退回全部，
+      // 宁可多几张也别让整章空白
+      let picked = list.filter(x => x.ok);
+      if (!picked.length) picked = list;
+
+      // 打乱信息：scramble_id 在页面脚本里，编号从地址里拿
+      const scrambleId = this.scrambleIdOf(doc);
+      const aid = this.photoIdOf(baseUrl);
+
+      const out = [];
+      for (let i = 0; i < picked.length; i++) {
+        const u = picked[i].url;
+        if (out.indexOf(u) >= 0) continue;
+        out.push(u);
+        // 只有页面图才记分割数：混进来的小图本来就没打乱，还原反而会弄花
+        if (aid && picked[i].ok) jmSplit.set(bare(u), jmSplitNum(aid, scrambleId, jmFileName(u)));
+      }
+      return out;
+    },
+
+    async imagesFromHtml(html, url) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      return { items: this.imagesFromDoc(doc, url), total: 0 };
+    },
+
+    scrambleIdOf(doc) {
+      const scripts = doc.querySelectorAll('script');
+      for (let i = 0; i < scripts.length; i++) {
+        const m = (scripts[i].textContent || '').match(/var\s+scramble_id\s*=\s*(\d+)/);
+        if (m) return parseInt(m[1], 10);
+      }
+      return JM_SCRAMBLE_DEFAULT;
+    },
+
+    photoIdOf(url) {
+      const m = String(url).match(/\/photo(?:s)?\/(\d+)/i);
+      return m ? m[1] : '';
+    },
+
+    // 引擎拿到字节后会先过这里：把打乱的图还原成正常图
+    async decodeImage(blob, url) {
+      const num = jmSplit.get(bare(url));
+      if (!num) return blob;
+      return jmUnscramble(blob, num);
+    }
+  };
+
+
+  const SITES = [MANGACOPY, EHENTAI, NHENTAI, JMCOMIC];
 
   function detectSite(url) {
     for (let i = 0; i < SITES.length; i++) {
@@ -1017,7 +1491,14 @@
       let total = 0;
       let how = '';
       try {
-        if (sameUrl(chUrl, location.href)) {
+        // 有 JSON 接口的站（比如 nhentai）：一次请求拿全章地址，
+        // 比「抓 HTML + 逐页解析」快一个数量级。失败就退回下面的老路。
+        const fast = await fastImages(chUrl);
+        if (fast) {
+          images = fast.images;
+          total = fast.total;
+          how = fast.how;
+        } else if (sameUrl(chUrl, location.href)) {
           const r = await liveImages();
           images = r.images;
           total = r.total || 0;
@@ -1049,6 +1530,28 @@
 
     chInflight.set(key, job);
     return job;
+  }
+
+  // 适配器可以自己整章取图（有接口的站用得上）。返回 null 表示「我取不了，
+  // 走原来的三条路」。约定返回 {images, total, how} 或 {items, total}。
+  async function fastImages(chUrl) {
+    const site = S.site;
+    if (!site || !site.fetchImages) return null;
+
+    try {
+      const r = await site.fetchImages(chUrl);
+      if (!r) return null;
+      const items = Array.isArray(r) ? r : (r.images || r.items || []);
+      if (!items.length) return null;
+      return {
+        images: items,
+        total: (r && r.total) || items.length,
+        how: (r && r.how) || '接口'
+      };
+    } catch (e) {
+      log('接口取图失败，退回页面解析：' + (e && e.message));
+      return null;
+    }
   }
 
   // 当前页：站点脚本已经把这一章解好了，优先把完整列表挖出来
@@ -1097,8 +1600,13 @@
     }
 
     // 2) 让浏览器自己渲染——站点用什么办法都行，我只读结果
+    //    等什么算「渲染好了」由适配器决定（frameReady），默认按拷贝漫画的列表判
+    const ready = site.frameReady
+      ? d => !!site.frameReady(d)
+      : d => d.querySelectorAll('ul.comicContent-list img').length > 0;
+
     return withFrame(async () => {
-      const doc = await frameLoad(chUrl, d => d.querySelectorAll('ul.comicContent-list img').length > 0, 25000);
+      const doc = await frameLoad(chUrl, ready, 25000);
       if (!doc) { dropFrame(); return { images: [], how: 'iframe 超时' }; }
 
       await frameSettleImages(doc.defaultView, doc);
@@ -1134,7 +1642,7 @@
         const u = await site.resolveItem(raw);
         if (u) { imgUrl.set(key, u); return u; }
       } catch (e) {
-        log('取图片地址失败：' + (e && e.message));
+        log('取图片地址失败 ' + raw + ' · ' + (e && e.message));
       }
       return null;
     })().finally(() => imgPending.delete(key));
@@ -1424,17 +1932,18 @@
 
   const dl = { q: [], queued: new Set(), active: new Set(), running: 0 };
 
+  // 走页面自己的网络栈（和 <img> 同一条路，代理、UA、Cookie 都跟浏览器一致）
+  function fetchBlob(url) {
+    return fetch(url, { credentials: 'include' }).then(res => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.blob();
+    });
+  }
+
   function gmBlob(url) {
+    if (typeof GM_xmlhttpRequest !== 'function') return fetchBlob(url);
+
     return new Promise((resolve, reject) => {
-      if (typeof GM_xmlhttpRequest !== 'function') {
-        fetch(url, { credentials: 'include' })
-          .then(res => {
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            return res.blob();
-          })
-          .then(resolve, reject);
-        return;
-      }
       GM_xmlhttpRequest({
         method: 'GET',
         url: url,
@@ -1445,9 +1954,14 @@
           if (r.status >= 200 && r.status < 300 && r.response) resolve(r.response);
           else reject(new Error('HTTP ' + r.status));
         },
-        onerror: () => reject(new Error('网络错误')),
-        ontimeout: () => reject(new Error('超时'))
+        onerror: () => reject(Object.assign(new Error('网络错误'), { net: true })),
+        ontimeout: () => reject(Object.assign(new Error('超时'), { net: true }))
       });
+    }).catch(e => {
+      // 扩展的网络栈和页面自己的不是一回事（代理设置、UA、Cookie 都可能不同），
+      // 遇到网络层错误就换 fetch 再试一次；HTTP 错误（404/403）就不用试了
+      if (!e || !e.net) throw e;
+      return fetchBlob(url).catch(() => { throw e; });
     });
   }
 
@@ -1471,6 +1985,63 @@
     }
   }
 
+  // 下下来的东西是不是一张真能解开的图。有的服务器会在中途断掉，返回一份
+  // 头部完好、后面截断的文件——类型看着是 image/jpeg，其实打不开。
+  // 这种一旦进了缓存，这一页就再也打不开了，所以入库前先试着解一次。
+  async function canDecode(blob) {
+    if (typeof createImageBitmap === 'function') {
+      try {
+        const bmp = await createImageBitmap(blob);
+        if (bmp && bmp.close) bmp.close();
+        return true;
+      } catch (e) { return false; }
+    }
+    return new Promise(resolve => {
+      const u = URL.createObjectURL(blob);
+      const im = new Image();
+      const done = ok => { dropUrl(u); resolve(ok); };
+      im.onload = () => done(im.naturalWidth > 0);
+      im.onerror = () => done(false);
+      im.src = u;
+    });
+  }
+
+  // 有的站图片是打乱过的（18comic），拿到字节后要先还原才能看
+  async function decodeBlob(url, blob) {
+    const site = S.site;
+    if (!site || !site.decodeImage || !blob) return blob;
+    try {
+      const out = await site.decodeImage(blob, url);
+      return out || blob;
+    } catch (e) {
+      log('图片还原失败 ' + url + ' · ' + (e && e.message));
+      return blob;
+    }
+  }
+
+  // 需要还原的图：没有缓存就当场下一份、还原、存库
+  const decodedPending = new Map();
+
+  function fetchDecoded(url) {
+    const key = bare(url);
+    if (decodedPending.has(key)) return decodedPending.get(key);
+
+    const job = (async () => {
+      const raw = await gmBlob(url);
+      if (isBadBlob(raw)) return null;
+      const fixed = await decodeBlob(url, raw);
+      if (cfg.blobCache) {
+        Promise.resolve(idbPut(url, fixed))
+          .then(ok => { if (ok) markCache(url, fixed.size || 0); })
+          .catch(() => {});
+      }
+      return fixed;
+    })().finally(() => decodedPending.delete(key));
+
+    decodedPending.set(key, job);
+    return job;
+  }
+
   async function runDl(item) {
     dl.active.add(item.key);
     try {
@@ -1485,9 +2056,11 @@
           const blob = await gmBlob(item.url);
           // 200 但返回的是错误页/空文件：别把它当图片存进去，不然这一页就废了
           if (isBadBlob(blob)) throw new Error('返回的不是图片');
-          if (await idbPut(item.url, blob)) { markCache(item.url, blob.size || 0); return; }
+          const fixed = await decodeBlob(item.url, blob);   // 打乱的图先还原
+          if (!(await canDecode(fixed))) throw new Error('图片解不开（可能下到一半断了）');
+          if (await idbPut(item.url, fixed)) { markCache(item.url, fixed.size || 0); return; }
         } catch (e) {
-          if (attempt === 1) log('图片缓存失败：' + (e && e.message));
+          if (attempt === 1) log('图片缓存失败 ' + item.url + ' · ' + (e && e.message));
         }
       }
     } finally {
@@ -2454,31 +3027,45 @@
     // 这一页刚被判过死刑（点过重试）：缓存和别的脚本的库一律跳过，直接重下。
     // 不这样的话，刚删掉的坏数据会被同一份立刻填回来，重试等于没点。
     const fresh = badImg.has(bare(url));
+    const site = S.site;
 
-    if (cfg.blobCache) {
-      if (!fresh) {
-        const blob = await withTimeout(idbGet(url), 1500, null);
-        if (blob && isBadBlob(blob)) {
-          log('缓存里是坏数据，丢掉重下：' + url);
-          idbDel(url).catch(() => {});
-        } else if (blob) {
-          try { return { src: URL.createObjectURL(blob), cached: true }; } catch (e) { /* 落到网络地址 */ }
-        }
-
-        // 别的脚本（E-Hentai 预加载）已经下好这张？借过来，省一次下载
-        const site = S.site;
-        if (site && site.borrowImage) {
-          const other = await withTimeout(site.borrowImage(url), 1500, null);
-          if (other && !isBadBlob(other)) {
-            Promise.resolve(idbPut(url, other)).catch(() => {});
-            try { return { src: URL.createObjectURL(other), cached: true }; } catch (e) { /* 落到网络地址 */ }
-          }
-        }
+    if (cfg.blobCache && !fresh) {
+      const blob = await withTimeout(idbGet(url), 1500, null);
+      if (blob && isBadBlob(blob)) {
+        log('缓存里是坏数据，丢掉重下：' + url);
+        idbDel(url).catch(() => {});
+      } else if (blob) {
+        try { return { src: URL.createObjectURL(blob), cached: true }; } catch (e) { /* 落到网络地址 */ }
       }
 
-      queueBlob(url);
+      // 别的脚本（E-Hentai 预加载）已经下好这张？借过来，省一次下载
+      if (site && site.borrowImage) {
+        const other = await withTimeout(site.borrowImage(url), 1500, null);
+        if (other && !isBadBlob(other)) {
+          Promise.resolve(idbPut(url, other)).catch(() => {});
+          try { return { src: URL.createObjectURL(other), cached: true }; } catch (e) { /* 落到网络地址 */ }
+        }
+      }
     }
+
+    // 打乱的图（18comic）：必须还原才能显示。缓存里存的就是还原后的版本，
+    // 没命中就当场下一份、还原、给个 blob 地址——不然画面上是乱序的图。
+    if (site && site.decodeImage && !fresh) {
+      const got = await withTimeout(fetchDecoded(url), 25000, null);
+      if (got) {
+        try { return { src: URL.createObjectURL(got), cached: true }; } catch (e) { /* 落到网络地址 */ }
+      }
+    }
+
+    if (cfg.blobCache) queueBlob(url);
     return { src: url, cached: false };
+  }
+
+  // 要不要重新设一次 src。同一个地址如果上次没加载出来，元素停在 error 状态，
+  // 光把同样的字符串再赋一遍浏览器不会重新请求——「重试」就成了空点。
+  function needsReload(el, src) {
+    if (el.getAttribute('src') !== src) return true;
+    return el.complete && !el.naturalWidth;
   }
 
   function applySrc(el, src) {
@@ -2487,8 +3074,9 @@
       el.removeAttribute('src');
       return;
     }
-    if (el.getAttribute('src') !== src) {
+    if (needsReload(el, src)) {
       dropUrl(el.getAttribute('src'));
+      el.removeAttribute('src');     // 先清掉，确保下面这次是真的重新发起请求
       el.src = src;
     }
     el.hidden = false;
@@ -2496,18 +3084,22 @@
 
   function applySrcQuiet(el, src) {
     if (!src) { el.hidden = true; el.removeAttribute('src'); return; }
-    if (el.getAttribute('src') !== src) {
+    if (needsReload(el, src)) {
       dropUrl(el.getAttribute('src'));
+      el.removeAttribute('src');
       el.src = src;
     }
     el.hidden = true;
   }
 
-  function whenLoaded(el) {
+  function whenLoaded(el, ms) {
     const size = () => (el.naturalWidth ? { w: el.naturalWidth, h: el.naturalHeight } : null);
-    if (el.complete) return Promise.resolve(size());
 
-    return new Promise(resolve => {
+    // 已经好了就直接返回；「complete 但没宽度」不能当成失败——
+    // 刚设完 src 的那一瞬间也可能处于这个状态，等一拍再判断。
+    if (el.complete && el.naturalWidth) return Promise.resolve(size());
+
+    const wait = () => new Promise(resolve => {
       let done = false;
       const finish = v => {
         if (done) return;
@@ -2519,10 +3111,17 @@
       };
       const onLoad = () => finish(size());
       const onError = () => finish(null);
-      const timer = setTimeout(() => finish(size()), 25000);
+      const timer = setTimeout(() => finish(size()), ms || 25000);
       el.addEventListener('load', onLoad);
       el.addEventListener('error', onError);
     });
+
+    if (el.complete) {
+      return new Promise(resolve => {
+        setTimeout(() => { if (el.complete) resolve(size()); else resolve(wait()); }, 80);
+      });
+    }
+    return wait();
   }
 
   async function paintPage(token) {
@@ -2543,14 +3142,77 @@
     const slotMain = cfg.rtl ? r.imgR : r.imgL;
     const slotPair = cfg.rtl ? r.imgL : r.imgR;
 
-    const a = await srcOf(url);
+    let a = await srcOf(url);
     if (token !== S.view) { dropUrl(a.src); return; }
 
     applySrcQuiet(slotMain, a.src);
-    const mA = a.src ? await whenLoaded(slotMain) : null;
+    let mA = a.src ? await whenLoaded(slotMain) : null;
     if (token !== S.view) return;
 
+    // 打不开时先自己换一条路重试一次，别直接把「重试」丢给用户：
+    //   ① 这张来自缓存 → 缓存里那份坏了（下了一半、或者根本不是图），删掉改走网络
+    //   ② 这张来自网络 → 地址可能过期（带时效签名的站），把映射丢掉重新换算
+    // 不做这两步的话，坏数据会一直卡在那儿，点多少次重试都是同一个结果。
+    if (!mA && a.cached) {
+      log('缓存里的图打不开，丢掉改走网络：' + url);
+      await forgetPage(raw);
+      if (token !== S.view) return;
+      a = await srcOf(url);
+      if (token !== S.view) { dropUrl(a.src); return; }
+      applySrcQuiet(slotMain, a.src);
+      mA = a.src ? await whenLoaded(slotMain) : null;
+      if (token !== S.view) return;
+    }
+
+    if (!mA && !a.cached && S.site && S.site.resolveItem && imgUrl.has(bare(raw))) {
+      log('地址可能已过期，重新换算一次：' + raw);
+      await forgetPage(raw);
+      if (token !== S.view) return;
+      const fresh = await resolveItem(raw);
+      if (token !== S.view) return;
+      if (fresh) {
+        a = await srcOf(fresh);
+        if (token !== S.view) { dropUrl(a.src); return; }
+        applySrcQuiet(slotMain, a.src);
+        mA = a.src ? await whenLoaded(slotMain) : null;
+        if (token !== S.view) return;
+      }
+    }
+
+    // 通用兜底：同一个地址隔一下再试一次。CDN 抽风、代理抖动造成的连接中断
+    // （ERR_CONNECTION_CLOSED / 超时）重试一次常常就好了。
+    // 这一步不分站点，对谁都生效。
+    if (!mA && a.src) {
+      await sleep(700);
+      if (token !== S.view) return;
+      applySrcQuiet(slotMain, a.src);       // needsReload 会强制重新发起请求
+      mA = await whenLoaded(slotMain, 8000);
+      if (token !== S.view) return;
+      if (mA) log('重试一次就通了：' + url);
+    }
+
+    // 还不行就换候选地址。有的站一张图有好几个主机（nhentai 是 i1~i4），
+    // 某个节点连不上时（典型症状是 ERR_CONNECTION_CLOSED）换一个就通了。
+    if (!mA && S.site && S.site.fallbacks) {
+      const alts = S.site.fallbacks(url) || [];
+      if (alts.length) log('换个图片主机再试：' + alts.length + ' 个候选');
+      for (let k = 0; k < alts.length; k++) {
+        if (token !== S.view) return;
+        const b = await srcOf(alts[k]);
+        if (token !== S.view) { dropUrl(b.src); return; }
+        applySrcQuiet(slotMain, b.src);
+        mA = b.src ? await whenLoaded(slotMain, 8000) : null;
+        if (token !== S.view) return;
+        if (mA) {
+          log('换主机成功：' + alts[k]);
+          imgUrl.set(bare(raw), alts[k]);   // 记住这个，下次直接用
+          break;
+        }
+      }
+    }
+
     if (!mA) {
+      log('这一页打不开：' + url);
       applySrc(r.imgR, null);
       applySrc(r.imgL, null);
       S.dims = { l: null, r: null };
@@ -3136,7 +3798,11 @@
     await forgetPage(S.images[S.idx]);
     if (cfg.spread) await forgetPage(S.images[S.idx + 1]);
 
-    chCache.delete(bare(S.at));
+    // 只有章节列表本身没取到（或上次就失败了）才整章重来。
+    // 只是某一页坏掉的话，重抓整章纯属浪费——站点限流时这一步还会必失败。
+    const c = chCache.get(bare(S.at));
+    if (!c || c.state !== 'ok') chCache.delete(bare(S.at));
+
     openChapter(Math.max(0, S.ci), S.idx);
   }
 
@@ -3452,6 +4118,14 @@
     const site = S.site;
     const token = S.gen;
 
+    // 阅读页上找不到回作品页的链接：拿不到目录，当单话读就行，
+    // 别把 null 塞进 fetchChapters 白等 25 秒
+    if (!detailUrl) {
+      S.listLoading = false;
+      renderChaps('');
+      return;
+    }
+
     S.listLoading = true;
     renderChaps('');
 
@@ -3492,7 +4166,15 @@
     const onDetail = site.isDetail(url.pathname);
     if (!onChapter && !onDetail) return;
 
-    const detailUrl = onChapter ? site.detailUrlOf(url, document) : bare(url);
+    // 目录页地址可能有标题尾巴（18comic），让站点归一成稳定的键
+    let detailUrl;
+    if (onChapter) {
+      detailUrl = site.detailUrlOf(url, document);
+    } else if (site.normDetail) {
+      detailUrl = site.normDetail(url) || bare(url);
+    } else {
+      detailUrl = bare(url);
+    }
 
     // E-Hentai 这种「一个画廊就是一话」的站：不需要目录
     if (site.single && !detailUrl) {
