@@ -2,7 +2,7 @@
 // @name            看漫画
 // @name:en         Comic Viewer
 // @namespace       local.comic.viewer
-// @version         1.1.0
+// @version         1.2.0
 // @description      功能更全的漫画界面，获得更好的体验：图片预加载、目录跳转、条漫连续滚动、章节自动衔接、双页无缝拼接、日漫右起、缩放、本地缓存。界面支持中 / 英 / 日 / 韩。
 // @description:en   A fuller-featured comic reader for a better reading experience: image preloading, chapter navigation, continuous webtoon scrolling, automatic chapter chaining, seamless two-page spreads, right-to-left reading, zoom, and local caching. UI available in Chinese / English / Japanese / Korean.
 // @author          3Bringer
@@ -20,6 +20,8 @@
 // @match           https://*.jmcomic-zzz.one/*
 // @match           https://jmcomic-zzz.org/*
 // @match           https://*.jmcomic-zzz.org/*
+// @match           https://telegra.ph/*
+// @match           https://www.telegra.ph/*
 // @grant           GM_xmlhttpRequest
 // @connect         *
 // @run-at          document-idle
@@ -187,7 +189,7 @@
       'set.strip': '条漫模式（整章连续滚动）',
       'set.spread': '双页模式',
       'set.rtl': '日漫模式（第二页在左）',
-      'set.ahead': '预读取页数',
+      'set.ahead': '预读取页数（之后补整章）',
       'set.maxblob': '缓存页数上限',
       'set.blob': '图片缓存',
       'set.cached': '已缓存',
@@ -207,6 +209,15 @@
 
       'chaps.search': '搜索章节…',
       'chaps.searchN': '搜索章节（共 {n} 话）',
+      'pages.open': '点击选择页码',
+      'pages.empty': '这一话还没读到图片',
+      'pages.item': '第 {n} 页',
+      'pages.title': '共 {n} 页 · 已缓存 {m}',
+      'pages.more': '还有 {n} 页，翻到后面会自动加载',
+      'pages.stready': '已缓存',
+      'pages.stload': '下载中',
+      'pages.stbad': '加载失败',
+      'pages.stnone': '未缓存',
       'chaps.loading': '正在读取目录…',
       'chaps.empty': '没读到目录，只能按顺序往下读',
       'chaps.noMatch': '没有匹配的章节',
@@ -262,7 +273,7 @@
       'set.strip': 'Webtoon mode (scroll)',
       'set.spread': 'Two-page mode',
       'set.rtl': 'Manga order (2nd left)',
-      'set.ahead': 'Preload pages',
+      'set.ahead': 'Preload pages (rest auto)',
       'set.maxblob': 'Cache limit (pages)',
       'set.blob': 'Image cache',
       'set.cached': 'Cached',
@@ -282,6 +293,15 @@
 
       'chaps.search': 'Search chapters…',
       'chaps.searchN': 'Search {n} chapters…',
+      'pages.open': 'Click to jump to a page',
+      'pages.empty': 'No images loaded yet',
+      'pages.item': 'Page {n}',
+      'pages.title': '{n} pages · {m} cached',
+      'pages.more': '{n} more pages load as you read',
+      'pages.stready': 'Cached',
+      'pages.stload': 'Downloading',
+      'pages.stbad': 'Failed',
+      'pages.stnone': 'Not cached',
       'chaps.loading': 'Loading chapters…',
       'chaps.empty': 'No chapter list — read in order',
       'chaps.noMatch': 'No matching chapter',
@@ -337,7 +357,7 @@
       'set.strip': '縦読みモード（章を連続）',
       'set.spread': '見開きモード',
       'set.rtl': '右開き（2ページ目が左）',
-      'set.ahead': '先読みページ数',
+      'set.ahead': '先読みページ数（残りは自動）',
       'set.maxblob': 'キャッシュ上限',
       'set.blob': '画像キャッシュ',
       'set.cached': 'キャッシュ済み',
@@ -357,6 +377,15 @@
 
       'chaps.search': '話を検索…',
       'chaps.searchN': '話を検索（全 {n} 話）',
+      'pages.open': 'クリックでページ選択',
+      'pages.empty': 'まだ画像がありません',
+      'pages.item': '{n} ページ',
+      'pages.title': '全 {n} ページ · キャッシュ {m}',
+      'pages.more': '残り {n} ページは読み進めると読み込みます',
+      'pages.stready': 'キャッシュ済み',
+      'pages.stload': '読み込み中',
+      'pages.stbad': '読み込み失敗',
+      'pages.stnone': '未キャッシュ',
       'chaps.loading': '目次を読み込み中…',
       'chaps.empty': '目次を取得できません',
       'chaps.noMatch': '一致する話がありません',
@@ -412,7 +441,7 @@
       'set.strip': '세로 읽기 (챕터 연속)',
       'set.spread': '두 페이지 모드',
       'set.rtl': '일본식 (2쪽이 왼쪽)',
-      'set.ahead': '미리 읽기',
+      'set.ahead': '미리 읽기 (나머지 자동)',
       'set.maxblob': '캐시 상한',
       'set.blob': '이미지 캐시',
       'set.cached': '캐시됨',
@@ -432,6 +461,15 @@
 
       'chaps.search': '챕터 검색…',
       'chaps.searchN': '챕터 검색 (총 {n}화)',
+      'pages.open': '클릭해서 페이지 선택',
+      'pages.empty': '아직 이미지가 없습니다',
+      'pages.item': '{n} 페이지',
+      'pages.title': '총 {n} 페이지 · 캐시 {m}',
+      'pages.more': '남은 {n} 페이지는 읽으면 불러옵니다',
+      'pages.stready': '캐시됨',
+      'pages.stload': '다운로드 중',
+      'pages.stbad': '실패',
+      'pages.stnone': '캐시 안 됨',
       'chaps.loading': '목차 불러오는 중…',
       'chaps.empty': '목차를 못 읽었습니다',
       'chaps.noMatch': '일치하는 챕터 없음',
@@ -499,6 +537,7 @@
 
     syncLauncherText();
     view.chapSig = '';      // 目录里的提示文字要跟着换
+    view.pageSig = '';      // 页码行也一样
     render();
   }
 
@@ -1367,7 +1406,66 @@
   };
 
 
-  const SITES = [MANGACOPY, EHENTAI, NHENTAI, JMCOMIC];
+  const TELEGRAPH = {
+    id: 'telegraph',
+    name: 'telegra.ph',
+    host: /(^|\.)telegra\.ph$/i,
+    single: true,        // 一个页面就是一话，没有章节可选
+    resume: true,        // 链接常被反复打开，接上次看到的位置（EH/nhentai 没开这个，重看就从第 1 页）
+
+    // slug 保留标题原文：中日文标题在浏览器里是百分号编码，标题里也可能带点
+    // （比如 Ver.1.0），所以只排除已知的系统页，其余单段路径都当内容页
+    isChapter(pathname) {
+      return /^\/[^\/]+\/?$/i.test(pathname)
+        && !/^\/(login|logout|register|faq|terms|privacy|abuse|jobs|upload|notfound)\/?$/i.test(pathname);
+    },
+
+    // 没有目录页这种东西
+    isDetail() { return false; },
+
+    // 页面自己就是目录键，进度（上次看到第几页）挂在它下面
+    detailUrlOf(url) { return bare(url); },
+
+    chaptersFromDoc(doc, detailUrl) {
+      if (!detailUrl) return [];
+      return [{ title: this.bookTitle(doc) || '页面', url: bare(detailUrl) }];
+    },
+
+    bookTitle(doc) {
+      const el = doc.querySelector('.tl_article_header h1')
+        || doc.querySelector('article h1')
+        || doc.querySelector('h1');
+      if (el && (el.textContent || '').trim()) return el.textContent.trim();
+      // <title> 是「标题 – Telegraph」
+      return String(doc.title || '').replace(/\s*[–—-]\s*Telegraph\s*$/i, '').trim();
+    },
+
+    // 打开时图片全在 DOM 里，直接收 article 里的 <img>
+    imagesFromDoc(doc, baseUrl) {
+      const scope = doc.querySelector('.tl_article_content') || doc.body || doc;
+      const imgs = scope.querySelectorAll('img');
+      const out = [];
+
+      for (let i = 0; i < imgs.length; i++) {
+        const el = imgs[i];
+        const src = el.getAttribute('src') || el.getAttribute('data-src') || '';
+        if (!src || /^(data:|blob:)/i.test(src)) continue;
+        const u = abs(src, baseUrl);
+        if (!u || out.indexOf(u) >= 0) continue;
+        // 统计信标（t.me/_websync_）不是内容图
+        if (/^https?:\/\/(www\.)?(t\.me|telegram\.me)\//i.test(u)) continue;
+        out.push(u);
+      }
+      return out;
+    },
+
+    async imagesFromHtml(html, url) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      return { items: this.imagesFromDoc(doc, url), total: 0 };
+    }
+  };
+
+  const SITES = [MANGACOPY, EHENTAI, NHENTAI, JMCOMIC, TELEGRAPH];
 
   function detectSite(url) {
     for (let i = 0; i < SITES.length; i++) {
@@ -1525,6 +1623,17 @@
         log('章节就绪 ' + images.length + ' 张 · 来源 ' + how +
           (total > images.length ? '（本章共 ' + total + '）' : ''));
       }
+
+      // 看过的章节列表留最近 16 个就够：长会话里每章几百个地址，别无限攒。
+      // 当前章节不淘汰（extendChapter / retry 还要用它的状态）
+      if (chCache.size > 16) {
+        const cur = S.at ? bare(S.at) : '';
+        for (const k of chCache.keys()) {
+          if (chCache.size <= 12) break;
+          if (k === cur) continue;
+          chCache.delete(k);
+        }
+      }
       return images;
     })().finally(() => chInflight.delete(key));
 
@@ -1640,7 +1749,18 @@
     const job = (async () => {
       try {
         const u = await site.resolveItem(raw);
-        if (u) { imgUrl.set(key, u); return u; }
+        if (u) {
+          imgUrl.set(key, u);
+          // 页面→图片的映射也会一直长，留个上限，从最早的开始丢
+          if (imgUrl.size > 6000) {
+            let drop = imgUrl.size - 5000;
+            for (const k of imgUrl.keys()) {
+              if (drop-- <= 0) break;
+              imgUrl.delete(k);
+            }
+          }
+          return u;
+        }
       } catch (e) {
         log('取图片地址失败 ' + raw + ' · ' + (e && e.message));
       }
@@ -1866,8 +1986,12 @@
     return removed;
   }
 
-  async function maybePrune() {
+  // 每存一张就扫全库太浪费（整章预载时一秒一次）。留点余量，攒够一批再清。
+  const PRUNE_SLACK = 20;
+
+  async function maybePrune(force) {
     if (pruning || S.cache.n <= cfg.maxBlob) return;
+    if (!force && S.cache.n <= cfg.maxBlob + PRUNE_SLACK) return;
     pruning = true;
     try { await trimTo(cfg.maxBlob); } finally { pruning = false; render(); }
   }
@@ -1876,10 +2000,9 @@
     const d = await db().catch(() => null);
     if (!d) return;
 
-    let n = 0;
-    let bytes = 0;
-    known.clear();
-
+    // 合并、不先清空：这个统计在打开后 800ms 跑，那时后台正在下载整章，
+    // 扫描期间刚落库的页如果被 clear() 抹掉，页码面板会一直显示成「没缓存」。
+    // 删除条目由 trimTo / clearCache 各自维护 known，这里不需要重建。
     await new Promise(resolve => {
       const tx = d.transaction(STORE, 'readonly');
       const req = tx.objectStore(STORE).openCursor();
@@ -1887,16 +2010,16 @@
         const c = req.result;
         if (!c) return;
         const v = c.value;
-        const size = (v.blob && v.blob.size) || 0;
-        known.set(v.url, size);
-        bytes += size;
-        n++;
+        known.set(v.url, (v.blob && v.blob.size) || 0);
         c.continue();
       };
       tx.oncomplete = resolve;
       tx.onerror = resolve;
     });
 
+    let n = 0;
+    let bytes = 0;
+    known.forEach(sz => { n++; bytes += sz; });
     S.cache.n = n;
     S.cache.b = bytes;
     render();
@@ -1930,7 +2053,9 @@
     } catch (e) { log('清空缓存失败：' + (e && e.message)); }
   }
 
-  const dl = { q: [], queued: new Set(), active: new Set(), running: 0 };
+  // q  = 前台：当前页和预读的那几张，优先下
+  // lo = 后台：整章预载，只占一个并发位，翻页请求永远有空位
+  const dl = { q: [], lo: [], queued: new Set(), active: new Set(), running: 0, bgRun: 0 };
 
   // 走页面自己的网络栈（和 <img> 同一条路，代理、UA、Cookie 都跟浏览器一致）
   function fetchBlob(url) {
@@ -1965,20 +2090,44 @@
     });
   }
 
-  function queueBlob(url) {
+  function queueBlob(url, bg) {
     if (!cfg.blobCache || !url) return;
     // 队列里按归一化 key 去重，但真正下载用的必须是原始地址
     // （有的图床把签名放在 query 上，归一化会把它抹掉）
     const key = bare(url);
-    if (dl.queued.has(key) || dl.active.has(key)) return;
+    if (dl.active.has(key)) return;
+
+    if (dl.queued.has(key)) {
+      // 后台排着的页被翻到了：提到前台，别让它排在整章后面
+      if (!bg) {
+        const i = dl.lo.findIndex(x => x.key === key);
+        if (i >= 0) {
+          const it = dl.lo.splice(i, 1)[0];
+          it.bg = false;          // 它从没算进 bgRun，别再按后台任务结算
+          dl.q.push(it);
+          pumpDl();
+        }
+      }
+      return;
+    }
+
     dl.queued.add(key);
-    dl.q.push({ key: key, url: url });
+    if (bg) dl.lo.push({ key: key, url: url, bg: true });
+    else dl.q.push({ key: key, url: url });
     pumpDl();
   }
 
   function pumpDl() {
-    while (dl.running < CONCURRENCY && dl.q.length) {
-      const item = dl.q.shift();
+    while (dl.running < CONCURRENCY) {
+      let item = null;
+      if (dl.q.length) {
+        item = dl.q.shift();
+      } else if (dl.lo.length && dl.bgRun < 1) {
+        // 后台整章预载只占一个并发位，另一个永远留给翻页
+        item = dl.lo.shift();
+        dl.bgRun++;
+      }
+      if (!item) break;
       dl.queued.delete(item.key);
       dl.running++;
       runDl(item);
@@ -2066,7 +2215,9 @@
     } finally {
       dl.active.delete(item.key);
       dl.running--;
+      if (item.bg) dl.bgRun = Math.max(0, dl.bgRun - 1);
       pumpDl();
+      if (item.bg) bgPump();     // 后台：下完一张再推下一张
     }
   }
 
@@ -2220,7 +2371,10 @@
 #cmv .c-title{flex:0 1 auto;min-width:0;font-weight:600;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #cmv .c-chip{flex:none;max-width:220px;padding:1px 7px;border:1px solid var(--c-line);border-radius:999px;
   font-size:10.5px;color:var(--c-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#cmv .c-count{flex:none;font-size:11px;font-variant-numeric:tabular-nums;color:var(--c-muted);letter-spacing:.01em}
+#cmv .c-count{flex:none;padding:1px 6px;margin:0 -6px;border:1px solid var(--c-line);border-radius:6px;
+  background:transparent;font:inherit;font-size:11px;font-variant-numeric:tabular-nums;
+  color:var(--c-muted);letter-spacing:.01em;cursor:pointer;transition:border-color .15s,color .15s,background-color .15s}
+#cmv .c-count:hover{background:var(--c-surface2);color:var(--c-ink);border-color:var(--c-line2)}
 #cmv .c-gap{flex:1;min-width:8px}
 #cmv .c-btn{flex:none;display:grid;place-items:center;width:26px;height:26px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--c-muted);cursor:pointer}
 #cmv .c-btn:hover{background:var(--c-surface2);color:var(--c-ink)}
@@ -2260,6 +2414,21 @@
 #cmv .c-chap:hover{background:var(--c-surface2);color:var(--c-ink)}
 #cmv .c-chap.is-cur{background:var(--c-surface2);color:var(--c-ok);font-weight:600}
 #cmv .c-chap-msg{padding:8px;color:var(--c-muted);font-size:11.5px;text-align:center;line-height:1.6}
+#cmv .c-pages{width:min(300px,92vw);top:auto;bottom:44px;left:10px;right:auto;grid-template-rows:auto 1fr;gap:6px;overflow:hidden}
+#cmv .c-pages-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:var(--c-muted)}
+#cmv .c-page-list{display:flex;flex-direction:column;gap:1px;max-height:min(58vh,480px);overflow-y:auto;
+  overscroll-behavior:contain;scrollbar-width:thin;padding:2px}
+#cmv .c-page{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 9px;
+  border:0;border-radius:6px;background:transparent;color:var(--c-muted);font:inherit;font-size:12px;
+  line-height:1.4;text-align:left;cursor:pointer}
+#cmv .c-page:hover{background:var(--c-surface2);color:var(--c-ink)}
+#cmv .c-page.is-cur{background:var(--c-surface2);color:var(--c-ok);font-weight:600}
+/* 每页尾部的加载状态点：灰=没缓存 · 绿=已缓存 · 黄=下载中 · 红=失败 */
+#cmv .c-pg-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--c-line2)}
+#cmv .c-pg-dot.is-ready{background:var(--c-ok)}
+#cmv .c-pg-dot.is-load{background:var(--c-warn);animation:c-blink 1s ease-in-out infinite}
+#cmv .c-pg-dot.is-bad{background:var(--c-bad)}
+@keyframes c-blink{50%{opacity:.3}}
 #cmv .c-progress{flex:1;display:flex;align-items:center;gap:2px;height:10px;min-width:0}
 #cmv .c-progress span{flex:1;min-width:2px;height:5px;border-radius:2px;background:var(--c-line2);cursor:pointer;transition:background-color .15s,opacity .15s}
 #cmv .c-progress span:hover{opacity:.65}
@@ -2375,7 +2544,7 @@
     </label>
   </div>
   <div class="c-row">
-    <span class="c-lab" data-i18n="set.ahead">预读取页数</span>
+    <span class="c-lab" data-i18n="set.ahead">预读取页数（之后补整章）</span>
     <span class="c-stepper">
       <button type="button" data-step="-1" aria-label="减少预取页数">−</button>
       <input class="c-num c-ahead" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="3" value="4" aria-label="预读取页数，1 到 8">
@@ -2428,8 +2597,12 @@
   <input class="c-find" type="text" data-i18n-ph="chaps.search" placeholder="搜索章节…" autocomplete="off" spellcheck="false">
   <div class="c-chap-list"></div>
 </div>
+<div class="c-panel c-pages" hidden>
+  <div class="c-pages-head"><span class="c-pages-title"></span></div>
+  <div class="c-page-list"></div>
+</div>
 <div class="c-foot">
-  <span class="c-count">– / –</span>
+  <button type="button" class="c-count" data-i18n-title="pages.open">– / –</button>
   <div class="c-progress"></div>
 </div>`;
 
@@ -2449,6 +2622,8 @@
     barsOn: false,
     lastWheel: 0,
     chapSig: '',
+    pageSig: '',
+    pgTimer: 0,
 
     build() {
       if (this.el) return;
@@ -2474,10 +2649,13 @@
         imgR: imgs[1],
         bar: q('.c-bar'),
         foot: q('.c-foot'),
-        panel: q('.c-panel:not(.c-chaps)'),
+        panel: q('.c-panel:not(.c-chaps):not(.c-pages)'),
         chaps: q('.c-chaps'),
         chapList: q('.c-chap-list'),
         find: q('.c-find'),
+        pages: q('.c-pages'),
+        pageList: q('.c-page-list'),
+        pageTitle: q('.c-pages-title'),
         veil: q('.c-veil'),
         tip: q('.c-tip'),
         tipText: q('.c-tip-text'),
@@ -2578,6 +2756,7 @@
     destroy() {
       if (this.raf) { cancelAnimationFrame(this.raf); this.raf = 0; }
       clearTimeout(this._badgeTimer);
+      if (this.pgTimer) { clearInterval(this.pgTimer); this.pgTimer = 0; }
       if (this._ro) { this._ro.disconnect(); this._ro = null; }
       window.removeEventListener('keydown', this._onKey, true);
       window.removeEventListener('resize', this._onResize);
@@ -2597,6 +2776,7 @@
       this.refs = null;
       this.barSig = '';
       this.chapSig = '';
+      this.pageSig = '';
       this.barsOn = false;
       this.drag = null;
       this.suppressClick = false;
@@ -2668,10 +2848,16 @@
       const seg = t.closest('.c-progress span');
       if (seg) { goIndex(parseInt(seg.dataset.page, 10)); return; }
 
+      if (t.closest('.c-count')) { this.showPanel('pages'); return; }
+
+      const pbtn = t.closest('.c-page');
+      if (pbtn) { goIndex(parseInt(pbtn.dataset.page, 10)); return; }
+
       if (t.closest('.c-bar, .c-foot, .c-panel')) return;
 
       if (this.refs.panel && !this.refs.panel.hidden) { this.showPanel(null); return; }
       if (this.refs.chaps && !this.refs.chaps.hidden) { this.showPanel(null); return; }
+      if (this.refs.pages && !this.refs.pages.hidden) { this.showPanel(null); return; }
 
       const r = this.el.getBoundingClientRect();
       const x = (e.clientX - r.left) / Math.max(1, r.width);
@@ -2687,7 +2873,14 @@
       if (t.classList.contains('c-blob')) {
         cfg.blobCache = !!t.checked;
         saveCfg();
-        if (cfg.blobCache) prefetch();
+        if (cfg.blobCache) {
+          prefetch();
+        } else {
+          // 关掉缓存就别再后台下整章了
+          dl.lo.length = 0;
+          dl.queued.clear();
+          bg.key = ''; bg.next = 0; bg.end = 0; bg.told = 0;
+        }
         render();
         return;
       }
@@ -2753,18 +2946,21 @@
 
     toggleBars() { this.showBars(!this.barsOn); },
 
-    // which: 'set' | 'chaps' | null
+    // which: 'set' | 'chaps' | 'pages' | null
     showPanel(which) {
       const r = this.refs;
       if (!r) return;
       const p = r.panel;
       const c = r.chaps;
+      const pg = r.pages;
 
       const openSet = which === 'set' && p.hidden;
       const openChaps = which === 'chaps' && c.hidden;
+      const openPages = !!pg && which === 'pages' && pg.hidden;
 
       p.hidden = !openSet;
       c.hidden = !openChaps;
+      if (pg) pg.hidden = !openPages;
 
       if (openChaps) {
         this.showBars(true);
@@ -2773,6 +2969,29 @@
         if (cur && typeof cur.scrollIntoView === 'function') {
           try { cur.scrollIntoView({ block: 'center' }); } catch (e) { /* ignore */ }
         }
+      }
+
+      if (openPages) {
+        this.showBars(true);
+        this.pageSig = '';
+        renderPages();
+        const cur = r.pageList.querySelector('.is-cur');
+        if (cur && typeof cur.scrollIntoView === 'function') {
+          try { cur.scrollIntoView({ block: 'center' }); } catch (e) { /* ignore */ }
+        }
+      }
+
+      this.syncPageTimer();
+    },
+
+    // 页码面板开着时，每 600ms 刷一次状态点（后台下载在推进，颜色要跟着变）
+    syncPageTimer() {
+      const on = !!(this.refs && this.refs.pages && !this.refs.pages.hidden);
+      if (on && !this.pgTimer) {
+        this.pgTimer = setInterval(() => { if (S.open) paintPageDots(); }, 600);
+      } else if (!on && this.pgTimer) {
+        clearInterval(this.pgTimer);
+        this.pgTimer = 0;
       }
     },
 
@@ -2917,6 +3136,7 @@
       r.singleBtn.classList.toggle('is-on', !!cfg.singleStep);
 
       if (!r.chaps.hidden) renderChaps(r.find.value);
+      if (r.pages && !r.pages.hidden) renderPages();
 
       // 标签在窄面板里被省略号截断时，悬停能看全文
       const labs = this.el.querySelectorAll('.c-lab');
@@ -3014,6 +3234,88 @@
     }
     if (!shown) frag.appendChild(h('div', 'c-chap-msg', msg('chaps.noMatch')));
     r.chapList.replaceChildren(frag);
+  }
+
+  // 一页现在的状态：ready / load / bad / none
+  function pageStatus(p) {
+    const raw = S.images[p];
+    if (!raw) return 'none';
+    const key = bare(resolvedOf(raw));   // E-Hentai 的页面地址要先换成图片地址
+    if (badImg.has(key)) return 'bad';
+    if (known.has(key)) return 'ready';
+    if (dl.active.has(key) || dl.queued.has(key)) return 'load';
+    return 'none';
+  }
+
+  function renderPages() {
+    const r = view.refs;
+    if (!r || !r.pages || r.pages.hidden) return;
+
+    const total = S.images.length;
+    // 翻页不重建列表：几百行重建一次太贵，当前页高亮交给 paintPageDots
+    const sig = total + '|' + S.ci;
+    if (sig === view.pageSig) { paintPageDots(); return; }
+    view.pageSig = sig;
+
+    const frag = document.createDocumentFragment();
+
+    if (!total) {
+      r.pageTitle.textContent = msg('pages.title', { n: 0, m: 0 });
+      frag.appendChild(h('div', 'c-chap-msg', msg('pages.empty')));
+      r.pageList.replaceChildren(frag);
+      return;
+    }
+
+    for (let p = 0; p < total; p++) {
+      const b = h('button', 'c-page');
+      b.type = 'button';
+      b.dataset.page = String(p);
+      b.appendChild(h('span', 'c-pg-no', msg('pages.item', { n: p + 1 })));
+      const dot = h('span', 'c-pg-dot');
+      dot.dataset.page = String(p);
+      b.appendChild(dot);
+      frag.appendChild(b);
+    }
+
+    // 章节还没取完（E-Hentai 的缩略图分页）：说清楚后面的页会随阅读补上
+    if (S.total > total) {
+      frag.appendChild(h('div', 'c-chap-msg', msg('pages.more', { n: S.total - total })));
+    }
+
+    r.pageList.replaceChildren(frag);
+    paintPageDots();
+  }
+
+  // 只改圆点颜色和当前页高亮，不动 DOM 结构（滚动位置、焦点都不受影响）
+  function paintPageDots() {
+    const r = view.refs;
+    if (!r || !r.pages || r.pages.hidden) return;
+
+    let ready = 0;
+    const rows = r.pageList.children;
+    for (let i = 0; i < rows.length; i++) {
+      const b = rows[i];
+      if (!b.dataset || b.dataset.page == null) continue;   // 末尾的提示行
+
+      const p = parseInt(b.dataset.page, 10);
+      const st = pageStatus(p);
+      if (st === 'ready') ready++;
+
+      const dot = b.lastElementChild;
+      if (dot && dot.classList.contains('c-pg-dot')) {
+        const cls = 'c-pg-dot' + (st === 'none' ? '' : ' is-' + st);
+        if (dot.className !== cls) {
+          dot.className = cls;
+          dot.title = msg('pages.st' + st);
+        }
+      }
+
+      // 双页模式下右边那张也算「当前」
+      b.classList.toggle('is-cur', p === S.idx || (S.step > 1 && p === S.idx + 1));
+    }
+
+    // 已缓存数只算本章，别拿全库的缓存数糊弄
+    r.pageTitle.textContent = msg('pages.title', { n: S.images.length, m: ready });
   }
 
   function dropUrl(u) {
@@ -3787,6 +4089,64 @@
         }).catch(() => {});
       }
     }
+
+    // 首屏这几张排进前台之后，剩下的交给后台慢慢补完整章
+    bgPreload();
+  }
+  const bg = { key: '', next: 0, end: 0, told: 0 };
+
+  function bgPreload() {
+    if (!cfg.blobCache || !S.open || !S.images.length) return;
+
+    const key = bare(S.at);
+    const total = S.images.length;
+
+    if (bg.key !== key) {
+      bg.key = key;
+      // 从「前台预读的最后一页」接着往后；恢复阅读位置时不用回头补前面的
+      bg.next = Math.min(total, S.idx + cfg.ahead);
+      bg.end = 0;
+      bg.told = 0;
+    }
+
+    bg.end = Math.max(bg.end, Math.min(total, S.idx + cfg.maxBlob));
+
+    if (!bg.told && bg.next < bg.end) {
+      bg.told = 1;
+      log('整章预载：第 ' + (bg.next + 1) + '–' + bg.end + ' 页（后台，不影响翻页）');
+    }
+    bgPump();
+  }
+
+  function bgPump() {
+    if (!cfg.blobCache || !S.open) return;
+    if (bg.key !== bare(S.at)) return;      // 已经换章，旧区间作废
+
+    if (bg.next >= bg.end) {
+      // 最后一张还在下：等它落库再算完成（不然日志和状态都会提前一步）
+      if (dl.lo.length || dl.bgRun >= 1) return;
+
+      // 本章列表还没取完（E-Hentai 的缩略图分页）：续一批再接着备
+      if (S.more && bg.end >= S.images.length) {
+        extendChapter().then(ok => { if (ok && S.open) bgPreload(); }).catch(() => {});
+        return;
+      }
+      if (bg.told === 1) { bg.told = 2; log('整章预载完成：' + bg.end + ' 页'); }
+      return;
+    }
+    if (dl.lo.length || dl.bgRun >= 1) return;   // 手上还有一张没下完
+
+    const p = bg.next++;
+    const raw = S.images[p];
+    if (!raw) { bgPump(); return; }
+
+    resolveItem(raw)
+      .then(u => {
+        if (!u || !S.open || bg.key !== bare(S.at)) return;
+        queueBlob(u, true);
+      })
+      .catch(() => {})
+      .finally(() => bgPump());
   }
 
   // 重试：先把出错这一页的缓存删掉，再重新取。
@@ -3964,7 +4324,8 @@
     cfg.maxBlob = v;
     saveCfg();
     render();
-    maybePrune();
+    maybePrune(true);
+    prefetch();          // 上限调大后，整章预载可以继续往后补
   }
 
   function commitNum(el) {
@@ -3984,7 +4345,7 @@
     cfg[key] = v;
     saveCfg();
     render();
-    if (isAhead) prefetch(); else maybePrune();
+    if (isAhead) prefetch(); else maybePrune(true);
   }
 
   function isTyping(t) {
@@ -4228,6 +4589,17 @@
       startChapterUrl = bare(detailUrl);
       startIdx = site.pageIndexOf ? site.pageIndexOf(url) : 0;
       S.ci = 0;
+
+      // 接上次位置只给声明了 resume 的站（telegraph 这种链接即内容的）。
+      // E-Hentai / nhentai 这类单话作品不接——想重看就从第 1 页开始。
+      // URL 里带页号的（nhentai 的 /g/1/4/）永远优先。
+      if (!startIdx && site.resume) {
+        const pos = loadPos();
+        if (pos && sameUrl(pos.url, startChapterUrl)) {
+          startIdx = clamp(toInt(pos.idx, 0), 0, 99999);
+          resumed = true;
+        }
+      }
     } else if (onChapter) {
       startChapterUrl = bare(url);
       // 目录还没到时，先按「只有这一话」处理，读完再补上真正的目录
@@ -4286,7 +4658,9 @@
     S.gen++;
     document.removeEventListener('keydown', blockSiteKeys, true);
     dl.q.length = 0;
+    dl.lo.length = 0;
     dl.queued.clear();
+    bg.key = ''; bg.next = 0; bg.end = 0; bg.told = 0;
 
     const a = view.refs && view.refs.imgL;
     const b = view.refs && view.refs.imgR;

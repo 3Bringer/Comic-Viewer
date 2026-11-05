@@ -11,3 +11,5 @@
 // @match           https://*.jmcomic-zzz.one/*
 // @match           https://jmcomic-zzz.org/*
 // @match           https://*.jmcomic-zzz.org/*
+// @match           https://telegra.ph/*
+// @match           https://www.telegra.ph/*

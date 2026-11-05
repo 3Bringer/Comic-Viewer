@@ -53,6 +53,7 @@ The interface supports **中文 / English / 日本語 / 한국어**, switchable 
 - exhentai
 - 18comic
 - nhentai
+- telegraph
 
 (More sites will be added.)
 

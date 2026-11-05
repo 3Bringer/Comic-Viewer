@@ -53,6 +53,7 @@
 - exhentai
 - 18comic
 - nhentai
+- telegraph
 (后续会添加支持的站点)
 
 > 如果你想自行增删支持网站，请在本脚本的 `@match` 行（第 10 行起）进行增删。
