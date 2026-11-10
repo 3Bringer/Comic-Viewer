@@ -59,7 +59,13 @@ The interface supports **中文 / English / 日本語 / 한국어**, switchable 
 
 > To add or remove supported sites yourself, edit the `@match` lines in this script (starting at line 10).
 >
-> **Tip:** If you installed this script from Greasy Fork, the built-in site list is incomplete. You can replace the corresponding part of the script's `@match` lines with those from [`list.js`](https://github.com/3Bringer/Comic-Viewer/blob/master/list.js) for fuller coverage.
+> **Note:** If you install this script via Greasy Fork, the built-in site support is incomplete. For full site support, follow these steps:
+>
+> 1. Open the Tampermonkey dashboard, click the script name, and go to "Settings".
+> 2. Find "User matches", click "Add", and enter the site rules you need from [`list.js`](https://github.com/3Bringer/Comic-Viewer/blob/master/list.txt) one by one, for example: `https://telegra.ph/*`.
+> 3. Save. These rules will be merged with the script's built-in matches and will not be overwritten when the script updates.
+>
+> If you want the script to run only according to these rules, uncheck "Original matches".
 
 ---
 
