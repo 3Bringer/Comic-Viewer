@@ -62,7 +62,7 @@ The interface supports **中文 / English / 日本語 / 한국어**, switchable 
 > **Note:** If you install this script via Greasy Fork, the built-in site support is incomplete. For full site support, follow these steps:
 >
 > 1. Open the Tampermonkey dashboard, click the script name, and go to "Settings".
-> 2. Find "User matches", click "Add", and enter the site rules you need from [`list.js`](https://github.com/3Bringer/Comic-Viewer/blob/master/list.txt) one by one, for example: `https://telegra.ph/*`.
+> 2. Find "User matches", click "Add", and enter the site rules you need from [`list`](https://github.com/3Bringer/Comic-Viewer/blob/master/list.txt) one by one, for example: `https://telegra.ph/*`.
 > 3. Save. These rules will be merged with the script's built-in matches and will not be overwritten when the script updates.
 >
 > If you want the script to run only according to these rules, uncheck "Original matches".

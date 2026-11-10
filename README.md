@@ -61,7 +61,7 @@
 > **提示：** 如果你通过 Greasy Fork 安装本脚本，内置支持站点不完整。如需完整站点支持，操作如下：
 >
 > 1. 打开 Tampermonkey 管理面板，点击脚本名称，进入“设置”。
-> 2. 找到“用户匹配”，点“添加”，将 [`list.js`](https://github.com/3Bringer/Comic-Viewer/blob/master/list.txt) 中你需要的站点规则逐条填入，例如：`https://telegra.ph/*`。
+> 2. 找到“用户匹配”，点“添加”，将 [`list`](https://github.com/3Bringer/Comic-Viewer/blob/master/list.txt) 中你需要的站点规则逐条填入，例如：`https://telegra.ph/*`。
 > 3. 保存即可。该规则会与脚本自带匹配合并，脚本更新不会覆盖。
 >
 > 如果只想按这些规则运行，可取消勾选“原始匹配”。
